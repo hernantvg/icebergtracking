@@ -1,0 +1,114 @@
+body {
+    background: linear-gradient(135deg, #8e44ad, #2c3e50);
+    font-family: 'Arial', sans-serif;
+    color: #fff;
+    padding-top: 50px;
+}
+
+header {
+    text-align: center;
+    margin-bottom: 30px;
+}
+
+header h1 {
+    font-size: 3.5rem;
+    font-weight: bold;
+    margin-bottom: 10px;
+    letter-spacing: -1px;
+}
+
+header p.lead {
+    font-size: 1.2rem;
+    color: #ddd;
+}
+
+.alert-warning {
+    background-color: #fff3cd;
+    color: #856404;
+}
+
+.form-select {
+    background-color: #ffffff;
+    border-radius: 10px;
+    border: 2px solid #ddd;
+    font-size: 1.2rem;
+    padding: 10px;
+}
+
+.form-select:focus {
+    border-color: #8e44ad;
+    box-shadow: 0 0 10px rgba(142, 68, 173, 0.5);
+}
+
+.btn-primary {
+    background-color: #8e44ad;
+    border-color: #8e44ad;
+    padding: 12px 20px;
+    border-radius: 25px;
+    font-size: 1.2rem;
+    width: 100%;
+    transition: background-color 0.3s ease;
+}
+
+.btn-primary:hover {
+    background-color: #9b59b6;
+    border-color: #9b59b6;
+}
+
+#iceberg-info p {
+    font-size: 1.2rem;
+    line-height: 1.6;
+    margin-bottom: 15px;
+}
+
+.map-container {
+    /* height: 450px; */
+    border-radius: 15px;
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+    margin-top: 30px;
+}
+
+.card-body {
+    /* background: rgba(36, 36, 36, 0.4); */
+    border-radius: 15px;
+    padding: 20px;
+}
+
+.card-body h5 {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: #000000;
+    margin-bottom: 20px;
+}
+
+section {
+    margin-bottom: 3rem;
+}
+
+.loading-spinner {
+    display: none;
+    width: 4rem;
+    height: 4rem;
+    border: 4px solid #f3f3f3;
+    border-top: 4px solid #8e44ad;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin-top: 20px;
+    margin-bottom: 20px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+.card {
+    border-radius: 15px;
+    overflow: hidden;
+}
+
+.card:hover {
+    transform: translateY(-10px);
+    box-shadow: 0 15px 30px rgba(0, 0, 0, 0.15);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
