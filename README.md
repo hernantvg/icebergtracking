@@ -8,10 +8,12 @@ Para instalar las dependencias necesarias, asegúrate de tener `pip` instalado y
 
 ```bash
 pip install -r requirements.txt
-
+```
 
 ```bash
 cd app
+```
 
 ```bash
 python app.py
+```
