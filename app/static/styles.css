@@ -55,6 +55,23 @@ header p.lead {
     border-color: #9b59b6;
 }
 
+.btn-custom {
+    background-color: #8e44ad;
+    border-color: #8e44ad;
+    color: #ddd;
+    padding: 12px 20px;
+    border-radius: 25px;
+    font-size: 1.2rem;
+    width: auto;
+    transition: background-color 0.3s ease;
+}
+
+.btn-custom:hover {
+    background-color: #9b59b6;
+    border-color: #9b59b6;
+    color: #ddd;
+}
+
 #iceberg-info p {
     font-size: 1.2rem;
     line-height: 1.6;
