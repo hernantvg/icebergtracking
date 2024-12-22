@@ -1,6 +1,6 @@
 # icebergtracking
 
-Este proyecto permite el rastreo de icebergs descargando un archivo CSV desde la URL [https://usicecenter.gov/File/DownloadCurrent?pId=134](https://usicecenter.gov/File/DownloadCurrent?pId=134) y permite ver la trayectoria histórica de cada iceberg.
+Este proyecto permite el rastreo de icebergs descargando un archivo CSV desde la URL [https://usicecenter.gov](https://usicecenter.gov) y permite ver la trayectoria histórica de cada iceberg.
 
 ## Requisitos
 
