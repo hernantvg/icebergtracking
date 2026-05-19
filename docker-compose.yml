@@ -1,0 +1,16 @@
+services:
+  iceberg-sentinel:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: iceberg-sentinel
+    ports:
+      - "5000:5000"
+    volumes:
+      # Mount the local CSV directory and the SQLite database file to persist scraped data on the host machine
+      - ./app/csv:/app/csv
+      - ./app/icebergs.db:/app/icebergs.db
+    environment:
+      - PYTHONUNBUFFERED=1
+      - FLASK_ENV=production
+    restart: always
