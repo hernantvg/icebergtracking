@@ -1,31 +1,282 @@
-<!DOCTYPE html>
-<html lang="en">
+{% include 'header.html' %}
 
-<body>
-    {% include 'header.html' %}
-    <div class="container mt-4">
-        <h1 class="text-center">Current positions of icebergs</h1>
-        <div class="d-flex justify-content-between align-items-center mt-4">
-            <p class="lead mb-0">View real-time iceberg positions and their historical trajectories.</p>
-            <a href="/tracking" class="btn btn-custom ml-auto">Go to Iceberg Trajectory</a>
+<main class="container mt-2">
+    <!-- Top Greeting and Overview -->
+    <div class="row align-items-center mb-4">
+        <div class="col-md-8">
+            <h2 class="display-6 fw-bold">Polar Command Center</h2>
+            <p class="text-secondary mb-0">Real-time telemetry, geographic trajectories, and mass decay analysis of active Antarctic icebergs.</p>
         </div>
-
-
-        {% if message %}
-        <div class="alert alert-warning" role="alert">{{ message }}</div>
-        {% endif %}
-
-        {% if current_positions_map %}
-        <div class="map-container my-4">
-            {{ current_positions_map|safe }}
+        <div class="col-md-4 text-md-end mt-3 mt-md-0">
+            <a href="/tracking" class="btn btn-custom">
+                <i class="fa-solid fa-crosshairs me-2"></i> Track Specific Iceberg
+            </a>
         </div>
-        {% else %}
-        <p class="text-center text-muted">No iceberg data available. Please add CSV files to the 'csv' folder.</p>
-        {% endif %}
-
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-</body>
+    <!-- Live Analytics Metrics Grid -->
+    <div class="row row-cols-1 row-cols-md-2 row-cols-lg-4 g-4 mb-4">
+        <!-- Stat 1: Active tracked -->
+        <div class="col">
+            <div class="glass-panel metric-card">
+                <div class="metric-value" id="stat-active">--</div>
+                <div class="metric-title"><i class="fa-solid fa-satellite-dish me-2"></i>Active Icebergs</div>
+            </div>
+        </div>
+        <!-- Stat 2: Largest -->
+        <div class="col">
+            <div class="glass-panel metric-card">
+                <div class="metric-value fs-4 pt-2" id="stat-largest" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">--</div>
+                <div class="metric-title"><i class="fa-solid fa-mountain me-2"></i>Largest Iceberg</div>
+            </div>
+        </div>
+        <!-- Stat 3: Total positions -->
+        <div class="col">
+            <div class="glass-panel metric-card">
+                <div class="metric-value" id="stat-records">--</div>
+                <div class="metric-title"><i class="fa-solid fa-database me-2"></i>Total Positions</div>
+            </div>
+        </div>
+        <!-- Stat 4: DB footprint -->
+        <div class="col">
+            <div class="glass-panel metric-card">
+                <div class="metric-value" id="stat-dates">--</div>
+                <div class="metric-title"><i class="fa-solid fa-calendar-days me-2"></i>Temporal Span</div>
+            </div>
+        </div>
+    </div>
 
+    <!-- Map & Table Split Layout -->
+    <div class="row g-4">
+        <!-- Left panel: Interactive Telemetry Map -->
+        <div class="col-lg-8">
+            <div class="glass-panel h-100 p-0 overflow-hidden glow-cyan">
+                <!-- Map Header controls -->
+                <div class="d-flex justify-content-between align-items-center p-3 border-bottom border-light border-opacity-10" style="background: rgba(0,0,0,0.2);">
+                    <h5 class="m-0 text-white"><i class="fa-solid fa-earth-americas me-2 text-cyan" style="color: var(--accent-cyan);"></i>Global Active Positions</h5>
+                    <div class="btn-group btn-group-sm" role="group">
+                        <button type="button" class="btn btn-outline-light active" id="map-tile-dark">Dark Matter</button>
+                        <button type="button" class="btn btn-outline-light" id="map-tile-satellite">Satellite</button>
+                    </div>
+                </div>
+                <!-- Leaflet container -->
+                <div class="map-container" style="height: 480px;">
+                    <div id="map"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Right panel: Active Icebergs Registry -->
+        <div class="col-lg-4">
+            <div class="glass-panel h-100 d-flex flex-column">
+                <div class="mb-3">
+                    <h5 class="text-white"><i class="fa-solid fa-list-check me-2 text-cyan" style="color: var(--accent-cyan);"></i>Active Registry</h5>
+                    <p class="text-secondary small mb-0">Search and jump to live historical coordinate files.</p>
+                </div>
+                
+                <!-- Autocomplete Combobox search -->
+                <div class="position-relative mb-3">
+                    <div class="input-group">
+                        <span class="input-group-text bg-dark border-light border-opacity-10 text-secondary"><i class="fa-solid fa-magnifying-glass"></i></span>
+                        <input type="text" class="form-control" placeholder="Search icebergs..." id="search-input" list="iceberg-datalist">
+                        <datalist id="iceberg-datalist">
+                            {% for iceberg in icebergs %}
+                            <option value="{{ iceberg }}"></option>
+                            {% endfor %}
+                        </datalist>
+                    </div>
+                </div>
+
+                <!-- Live Registry lists -->
+                <div class="sidebar-list flex-grow-1" id="active-list">
+                    <div class="text-center py-5 text-muted">
+                        <div class="loader-spinner"></div>
+                        <p class="small mt-2">Accessing polar database...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</main>
+
+<!-- Page Logic (Client-Side Rendering) -->
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        // 1. Initialize Map
+        const map = L.map('map', {
+            center: [-65, -45], // High-fidelity polar coordinates
+            zoom: 3,
+            maxZoom: 10,
+            minZoom: 2
+        });
+
+        // 2. Define High-Tech Map Tilesets
+        const darkTile = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; OpenStreetMap &copy; CARTO'
+        });
+        const satelliteTile = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community'
+        });
+
+        // Default tileset
+        darkTile.addTo(map);
+
+        // Tile Toggles
+        document.getElementById("map-tile-dark").addEventListener("click", function() {
+            this.classList.add("active");
+            document.getElementById("map-tile-satellite").classList.remove("active");
+            map.removeLayer(satelliteTile);
+            darkTile.addTo(map);
+        });
+
+        document.getElementById("map-tile-satellite").addEventListener("click", function() {
+            this.classList.add("active");
+            document.getElementById("map-tile-dark").classList.remove("active");
+            map.removeLayer(darkTile);
+            satelliteTile.addTo(map);
+        });
+
+        // 3. Fetch System Stats
+        fetch('/api/stats')
+            .then(res => res.json())
+            .then(data => {
+                if (data.status === 'success') {
+                    const stats = data.data;
+                    document.getElementById("stat-active").textContent = stats.unique_icebergs;
+                    document.getElementById("stat-records").textContent = Number(stats.total_records).toLocaleString();
+                    document.getElementById("stat-dates").textContent = stats.db_size_mb + ' MB';
+                    
+                    if (stats.largest_iceberg) {
+                        const name = stats.largest_iceberg.iceberg;
+                        const area = Math.round(stats.largest_iceberg.area_sqkm).toLocaleString() + ' km²';
+                        document.getElementById("stat-largest").innerHTML = `${name} <span class="fs-6 text-muted">(${area})</span>`;
+                        document.getElementById("stat-largest").title = `${name}: ${area}`;
+                    } else {
+                        document.getElementById("stat-largest").textContent = 'N/A';
+                    }
+                }
+            })
+            .catch(err => console.error("Error fetching stats:", err));
+
+        // 4. Fetch Iceberg Positions and Draw Markers
+        let icebergMarkers = [];
+        fetch('/api/latest-positions')
+            .then(res => res.json())
+            .then(resData => {
+                if (resData.status === 'success') {
+                    const positions = resData.data;
+                    const registryList = document.getElementById("active-list");
+                    registryList.innerHTML = ''; // Wipe loader
+                    
+                    if (positions.length === 0) {
+                        registryList.innerHTML = '<div class="text-center py-5 text-secondary">No data available. Proceed to Sync to import files.</div>';
+                        return;
+                    }
+
+                    // Populate Active Registry List and Draw Markers
+                    positions.forEach(item => {
+                        // Extract quadrant class
+                        const quadrant = item.iceberg.charAt(0).toUpperCase();
+                        let quadClass = 'quadrant-A';
+                        if (quadrant === 'B') quadClass = 'quadrant-B';
+                        else if (quadrant === 'C') quadClass = 'quadrant-C';
+                        else if (quadrant === 'D') quadClass = 'quadrant-D';
+                        
+                        // Map marker custom icon
+                        const sizeFactor = item.area_sqkm ? Math.min(25, Math.max(10, Math.sqrt(item.area_sqkm) * 0.3)) : 12;
+                        const isActiveClass = item.iceberg === 'A23A' ? 'custom-leaflet-marker-active pulse-marker' : '';
+                        
+                        const customIcon = L.divIcon({
+                            className: `custom-leaflet-marker ${isActiveClass}`,
+                            iconSize: [sizeFactor, sizeFactor],
+                            iconAnchor: [sizeFactor/2, sizeFactor/2],
+                            html: `<div style="width: 100%; height:100%; border-radius:50%;"></div>`
+                        });
+
+                        // Drawing Leaflet Marker
+                        const marker = L.marker([item.latitude, item.longitude], { icon: customIcon })
+                            .addTo(map)
+                            .bindPopup(`
+                                <div class="p-1">
+                                    <div class="d-flex justify-content-between align-items-center mb-2">
+                                        <h6 class="m-0 fw-bold text-white">${item.iceberg}</h6>
+                                        <span class="badge badge-quadrant ${quadClass}">Quadrant ${quadrant}</span>
+                                    </div>
+                                    <p class="small text-secondary mb-1"><strong>Last Updated:</strong> ${item.last_update}</p>
+                                    <p class="small text-secondary mb-1"><strong>Dimensions:</strong> ${item.length_nm || 'N/A'} x ${item.width_nm || 'N/A'} NM</p>
+                                    <p class="small text-secondary mb-1"><strong>Area:</strong> ${item.area_sqkm ? Math.round(item.area_sqkm).toLocaleString() + ' km²' : 'N/A'}</p>
+                                    <p class="small text-secondary mb-2"><strong>Coordinates:</strong> ${item.latitude.toFixed(2)}, ${item.longitude.toFixed(2)}</p>
+                                    <a href="/tracking?select=${item.iceberg}" class="btn btn-sm btn-custom py-1 px-3 w-100 text-center text-white" style="font-size:0.75rem;">
+                                        <i class="fa-solid fa-route me-1"></i> View Full Trajectory
+                                    </a>
+                                </div>
+                            `);
+                        
+                        icebergMarkers.push({ name: item.iceberg, marker: marker, data: item });
+
+                        // Add HTML item to list
+                        const listItem = document.createElement("div");
+                        listItem.className = "sidebar-item";
+                        listItem.setAttribute("data-iceberg", item.iceberg);
+                        listItem.innerHTML = `
+                            <div>
+                                <strong class="text-white">${item.iceberg}</strong>
+                                <div class="small text-muted" style="font-size:0.75rem;">${item.latitude.toFixed(2)}, ${item.longitude.toFixed(2)}</div>
+                            </div>
+                            <div class="text-end">
+                                <span class="badge badge-quadrant ${quadClass}">Q-${quadrant}</span>
+                                <div class="small text-cyan" style="font-size:0.75rem;">${item.area_sqkm ? Math.round(item.area_sqkm) + ' km²' : 'N/A'}</div>
+                            </div>
+                        `;
+                        
+                        // Click list item action: flies map to coordinate and opens popup
+                        listItem.addEventListener("click", function() {
+                            map.setView([item.latitude, item.longitude], 5);
+                            marker.openPopup();
+                            
+                            // Highlight item
+                            document.querySelectorAll(".sidebar-item").forEach(el => el.classList.remove("active"));
+                            listItem.classList.add("active");
+                        });
+                        
+                        registryList.appendChild(listItem);
+                    });
+                }
+            })
+            .catch(err => {
+                console.error("Error loading active points:", err);
+                document.getElementById("active-list").innerHTML = '<div class="text-center py-5 text-danger">Server connection error. Failed to load registry.</div>';
+            });
+
+        // 5. Search Bar Input Controller
+        const searchInput = document.getElementById("search-input");
+        searchInput.addEventListener("input", function() {
+            const query = this.value.trim().toUpperCase();
+            if (!query) {
+                // Restore hidden list elements
+                document.querySelectorAll(".sidebar-item").forEach(item => item.style.display = 'flex');
+                return;
+            }
+            
+            document.querySelectorAll(".sidebar-item").forEach(item => {
+                const name = item.getAttribute("data-iceberg");
+                if (name && name.includes(query)) {
+                    item.style.display = 'flex';
+                } else {
+                    item.style.display = 'none';
+                }
+            });
+            
+            // If exact match found, fly map to it
+            const matched = icebergMarkers.find(m => m.name === query);
+            if (matched) {
+                map.setView([matched.data.latitude, matched.data.longitude], 5);
+                matched.marker.openPopup();
+            }
+        });
+    });
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
 </html>

@@ -1,0 +1,188 @@
+{% include 'header.html' %}
+
+<main class="container mt-2">
+    <div class="row align-items-center mb-4">
+        <div class="col-md-8">
+            <h2 class="display-6 fw-bold">Data & Sync Manager</h2>
+            <p class="text-secondary mb-0">Synchronize local cache files directly with the U.S. National Ice Center (USNIC) database.</p>
+        </div>
+    </div>
+
+    <div class="row g-4">
+        <!-- Database Footprint and Details -->
+        <div class="col-lg-5">
+            <div class="glass-panel h-100">
+                <h5 class="text-white mb-3"><i class="fa-solid fa-server me-2 text-cyan" style="color: var(--accent-cyan);"></i>Database Footprint</h5>
+                
+                <div class="table-responsive">
+                    <table class="table table-custom">
+                        <tbody>
+                            <tr>
+                                <td><i class="fa-solid fa-database text-secondary me-2"></i>Total Records</td>
+                                <td class="text-end fw-bold text-cyan" id="db-records">--</td>
+                            </tr>
+                            <tr>
+                                <td><i class="fa-solid fa-satellite-dish text-secondary me-2"></i>Unique Icebergs</td>
+                                <td class="text-end fw-bold text-cyan" id="db-icebergs">--</td>
+                            </tr>
+                            <tr>
+                                <td><i class="fa-solid fa-calendar-days text-secondary me-2"></i>Date Coverage</td>
+                                <td class="text-end text-white" id="db-coverage" style="font-size: 0.85rem;">--</td>
+                            </tr>
+                            <tr>
+                                <td><i class="fa-solid fa-hard-drive text-secondary me-2"></i>Database File Size</td>
+                                <td class="text-end text-white" id="db-size">--</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="mt-4 p-3 rounded bg-dark bg-opacity-40 border border-light border-opacity-5">
+                    <h6 class="text-white fw-bold small uppercase mb-2"><i class="fa-solid fa-circle-exclamation text-warning me-1"></i>Deduplication Logic</h6>
+                    <p class="small text-secondary mb-0">The engine automatically enforces a unique database constraint on the primary key composite <code>(iceberg, last_update)</code>. Importing duplicate or overlapping CSV logs will execute safe database merges, ensuring flawless continuity.</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Sync triggers and Logs -->
+        <div class="col-lg-7">
+            <div class="glass-panel h-100">
+                <h5 class="text-white mb-2"><i class="fa-solid fa-rotate me-2 text-cyan" style="color: var(--accent-cyan);"></i>Synchronize Core Engines</h5>
+                <p class="text-secondary small mb-4">Run background synchronization processes to keep your local tracking database up to date.</p>
+                
+                <div class="d-flex flex-wrap g-3 gap-3 mb-4">
+                    <!-- Action 1: USNIC Scraper -->
+                    <button class="btn btn-custom" id="btn-sync-usnic">
+                        <i class="fa-solid fa-cloud-arrow-down me-2"></i>Scrape USNIC Live Data
+                    </button>
+                    <!-- Action 2: Force db rebuild -->
+                    <button class="btn btn-outline-custom" id="btn-rebuild-db">
+                        <i class="fa-solid fa-screwdriver-wrench me-2"></i>Rebuild Database
+                    </button>
+                </div>
+
+                <!-- Live status terminal log -->
+                <h6 class="text-white small uppercase mb-1">Process Console Logs:</h6>
+                <div class="terminal-log" id="process-log">
+                    [System Initialized] Iceberg Sentinel Core v1.0.0 is idle.<br>
+                    Ready for synchronization commands.
+                </div>
+                
+                <!-- Progress overlay indicator -->
+                <div class="d-none align-items-center mt-3 text-cyan" id="progress-spinner">
+                    <div class="loader-spinner"></div>
+                    <span class="small fw-bold">Executing command, please keep the server active...</span>
+                </div>
+            </div>
+        </div>
+    </div>
+</main>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function() {
+        const processLog = document.getElementById("process-log");
+        const progressSpinner = document.getElementById("progress-spinner");
+        
+        function logMessage(msg, isError = false) {
+            const timestamp = new Date().toLocaleTimeString();
+            const color = isError ? 'text-danger' : 'text-info';
+            processLog.innerHTML += `<br><span class="text-muted">[${timestamp}]</span> <span class="${color}">${msg}</span>`;
+            processLog.scrollTop = processLog.scrollHeight; // Auto scroll
+        }
+        
+        // 1. Fetch Stats on Load
+        function fetchDbStats() {
+            fetch('/api/stats')
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        const stats = data.data;
+                        document.getElementById("db-records").textContent = Number(stats.total_records).toLocaleString();
+                        document.getElementById("db-icebergs").textContent = stats.unique_icebergs;
+                        document.getElementById("db-coverage").textContent = stats.date_range;
+                        document.getElementById("db-size").textContent = stats.db_size_mb + ' MB';
+                    }
+                })
+                .catch(err => {
+                    console.error("Error fetching stats:", err);
+                    logMessage("Failed to retrieve current database stats.", true);
+                });
+        }
+        
+        fetchDbStats();
+
+        // 2. Trigger USNIC live Scraping
+        const btnSyncUsnic = document.getElementById("btn-sync-usnic");
+        btnSyncUsnic.addEventListener("click", function() {
+            // Lock UI
+            btnSyncUsnic.disabled = true;
+            document.getElementById("btn-rebuild-db").disabled = true;
+            progressSpinner.classList.remove("d-none");
+            
+            logMessage("Initiating scrape request to U.S. National Ice Center...");
+            
+            fetch('/api/sync-data', { method: 'POST' })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        logMessage(`Scrape Successful: ${data.message}`);
+                        logMessage(`Processed ${data.files_processed} files, ingested ${data.records_inserted} rows into index.`);
+                        fetchDbStats(); // Refresh stats
+                    } else {
+                        logMessage(`Scrape Failed: ${data.message}`, true);
+                    }
+                })
+                .catch(err => {
+                    console.error("Sync error:", err);
+                    logMessage("Fatal HTTP sync failure. Connection timed out.", true);
+                })
+                .finally(() => {
+                    // Unlock UI
+                    btnSyncUsnic.disabled = false;
+                    document.getElementById("btn-rebuild-db").disabled = false;
+                    progressSpinner.classList.add("d-none");
+                });
+        });
+
+        // 3. Trigger database Wiping & Rebuilding
+        const btnRebuildDb = document.getElementById("btn-rebuild-db");
+        btnRebuildDb.addEventListener("click", function() {
+            if (!confirm("Are you sure you want to re-ingest all local CSV files? This will overwrite existing records.")) {
+                return;
+            }
+            
+            // Lock UI
+            btnSyncUsnic.disabled = true;
+            btnRebuildDb.disabled = true;
+            progressSpinner.classList.remove("d-none");
+            
+            logMessage("Wiping existing records and starting bulk ingestion of files recursively...");
+            
+            fetch('/api/rebuild-db', { method: 'POST' })
+                .then(res => res.json())
+                .then(data => {
+                    if (data.status === 'success') {
+                        logMessage(`Rebuild Complete: ${data.message}`);
+                        logMessage(`Bulk processed ${data.files_processed} CSV files and integrated ${data.records_inserted} positions.`);
+                        fetchDbStats();
+                    } else {
+                        logMessage(`Rebuild Failed: ${data.message}`, true);
+                    }
+                })
+                .catch(err => {
+                    console.error("Rebuild error:", err);
+                    logMessage("Fatal HTTP rebuild failure.", true);
+                })
+                .finally(() => {
+                    // Unlock UI
+                    btnSyncUsnic.disabled = false;
+                    btnRebuildDb.disabled = false;
+                    progressSpinner.classList.add("d-none");
+                });
+        });
+    });
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

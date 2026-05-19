@@ -1,0 +1,125 @@
+{% include 'header.html' %}
+
+<main class="container mt-2">
+    <!-- Top greeting -->
+    <div class="row align-items-center mb-4">
+        <div class="col-md-10">
+            <h2 class="display-6 fw-bold">Polar Geographic Guide</h2>
+            <p class="text-secondary mb-0">Understand the science, classification standards, and geographic quadrants behind Antarctic iceberg tracking.</p>
+        </div>
+    </div>
+
+    <!-- Naming Standard explanation panel -->
+    <div class="glass-panel mb-5">
+        <div class="row align-items-center">
+            <div class="col-lg-8">
+                <h4 class="text-white fw-bold mb-3"><i class="fa-solid fa-tags text-cyan me-2" style="color: var(--accent-cyan);"></i>USNIC Naming Conventions</h4>
+                <p class="text-secondary">Antarctic icebergs are named and tracked by the **U.S. National Ice Center (USNIC)**. The names are structured logically based on the geographic quadrant where the iceberg was originally discovered, combined with a sequential number.</p>
+                <p class="text-secondary mb-0">For instance, <strong>A23A</strong> denotes:
+                    <ul>
+                        <li><strong class="text-white">A</strong>: Originally calved in Quadrant A (Bellingshausen/Weddell Sea).</li>
+                        <li><strong class="text-white">23</strong>: The 23rd major iceberg calved and tracked in that quadrant.</li>
+                        <li><strong class="text-white">A</strong>: A sequential suffix indicating that this is a sub-fragment resulting from a previous calving or split of the original iceberg A23.</li>
+                    </ul>
+                </p>
+            </div>
+            <div class="col-lg-4 text-center mt-4 mt-lg-0">
+                <div class="d-inline-block p-4 rounded-circle border border-light border-opacity-10 bg-dark bg-opacity-30 glow-cyan">
+                    <i class="fa-solid fa-compass-drafting fa-5x text-cyan" style="color: var(--accent-cyan); text-shadow: 0 0 20px rgba(0, 245, 212, 0.4);"></i>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Quadrants split cards -->
+    <h3 class="fw-bold text-white mb-4"><i class="fa-solid fa-map me-2 text-cyan" style="color: var(--accent-cyan);"></i>Antarctic Tracking Quadrants</h3>
+    <div class="row row-cols-1 row-cols-md-2 g-4 mb-5">
+        <!-- Quadrant A -->
+        <div class="col">
+            <div class="glass-panel h-100 position-relative overflow-hidden">
+                <div style="position:absolute; top:15px; right:15px;"><span class="badge badge-quadrant quadrant-A fs-6">Quadrant A</span></div>
+                <h4 class="text-white fw-bold mt-2 mb-3">Weddell / Bellingshausen Sea</h4>
+                <p class="text-secondary mb-0">Covers longitude spans from <strong class="text-white">0° to 90° W</strong>.</p>
+                <p class="text-muted small mt-2">Includes major ice shelfs like Larsen Ice Shelf and Filchner-Ronne Ice Shelf. Famous icebergs calved here include the massive <strong>A23A</strong>.</p>
+            </div>
+        </div>
+        <!-- Quadrant B -->
+        <div class="col">
+            <div class="glass-panel h-100 position-relative overflow-hidden">
+                <div style="position:absolute; top:15px; right:15px;"><span class="badge badge-quadrant quadrant-B fs-6">Quadrant B</span></div>
+                <h4 class="text-white fw-bold mt-2 mb-3">Amundsen / Eastern Ross Sea</h4>
+                <p class="text-secondary mb-0">Covers longitude spans from <strong class="text-white">90° W to 180°</strong>.</p>
+                <p class="text-muted small mt-2">Home of the Pine Island Glacier and Thwaites Glacier (the "Doomsday Glacier"), key monitoring hotbeds for structural ice sheet integrity.</p>
+            </div>
+        </div>
+        <!-- Quadrant C -->
+        <div class="col">
+            <div class="glass-panel h-100 position-relative overflow-hidden">
+                <div style="position:absolute; top:15px; right:15px;"><span class="badge badge-quadrant quadrant-C fs-6">Quadrant C</span></div>
+                <h4 class="text-white fw-bold mt-2 mb-3">Western Ross Sea / Wilkes Land</h4>
+                <p class="text-secondary mb-0">Covers longitude spans from <strong class="text-white">180° to 90° E</strong>.</p>
+                <p class="text-muted small mt-2">Surrounds massive glaciers calved into the Ross Sea ice front. Historically generates highly stable, tabular flat icebergs.</p>
+            </div>
+        </div>
+        <!-- Quadrant D -->
+        <div class="col">
+            <div class="glass-panel h-100 position-relative overflow-hidden">
+                <div style="position:absolute; top:15px; right:15px;"><span class="badge badge-quadrant quadrant-D fs-6">Quadrant D</span></div>
+                <h4 class="text-white fw-bold mt-2 mb-3">Amery / Eastern Weddell Sea</h4>
+                <p class="text-secondary mb-0">Covers longitude spans from <strong class="text-white">90° E to 0°</strong>.</p>
+                <p class="text-muted small mt-2">Includes the massive Amery Ice Shelf and Fimbul Ice Shelf, draining key interior sheets of East Antarctica.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Science FAQ and Climate Change -->
+    <div class="glass-panel">
+        <h4 class="text-white fw-bold mb-4"><i class="fa-solid fa-circle-question text-cyan me-2" style="color: var(--accent-cyan);"></i>Scientific FAQ</h4>
+        
+        <div class="accordion accordion-flush" id="faqAccordion">
+            <!-- Q1 -->
+            <div class="accordion-item bg-transparent border-bottom border-light border-opacity-10 py-3">
+                <h5 class="accordion-header" id="headingOne">
+                    <button class="accordion-button bg-transparent text-white fw-bold border-0 shadow-none collapsed px-0" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOne" aria-expanded="false" aria-controls="collapseOne">
+                        How large must an iceberg be to be tracked by the U.S. National Ice Center?
+                    </button>
+                </h5>
+                <div id="collapseOne" class="accordion-collapse collapse" aria-labelledby="headingOne" data-bs-parent="#faqAccordion">
+                    <div class="accordion-body text-secondary px-0">
+                        An iceberg must meet a minimum structural threshold before the USNIC will assign a tracking identifier and log its coordinates. The size criteria is at least <strong class="text-white">10 Nautical Miles (NM)</strong> on its longest axis, or a total surface area of at least <strong class="text-white">20 Square Nautical Miles (sqNM)</strong>.
+                    </div>
+                </div>
+            </div>
+            <!-- Q2 -->
+            <div class="accordion-item bg-transparent border-bottom border-light border-opacity-10 py-3">
+                <h5 class="accordion-header" id="headingTwo">
+                    <button class="accordion-button bg-transparent text-white fw-bold border-0 shadow-none collapsed px-0" type="button" data-bs-toggle="collapse" data-bs-target="#collapseTwo" aria-expanded="false" aria-controls="collapseTwo">
+                        How frequently is the tracking coordinate database updated?
+                    </button>
+                </h5>
+                <div id="collapseTwo" class="accordion-collapse collapse" aria-labelledby="headingTwo" data-bs-parent="#faqAccordion">
+                    <div class="accordion-body text-secondary px-0">
+                        The USNIC tracking databases and GIS portals are updated <strong class="text-white">weekly on Fridays</strong>. The satellite feeds and RADARSAT observations are analyzed by polar specialists to determine precise center coordinates, lengths, and widths before generating standard CSV reports.
+                    </div>
+                </div>
+            </div>
+            <!-- Q3 -->
+            <div class="accordion-item bg-transparent border-0 py-3">
+                <h5 class="accordion-header" id="headingThree">
+                    <button class="accordion-button bg-transparent text-white fw-bold border-0 shadow-none collapsed px-0" type="button" data-bs-toggle="collapse" data-bs-target="#collapseThree" aria-expanded="false" aria-controls="collapseThree">
+                        What is the relationship between calved icebergs and climate change?
+                    </button>
+                </h5>
+                <div id="collapseThree" class="accordion-collapse collapse" aria-labelledby="headingThree" data-bs-parent="#faqAccordion">
+                    <div class="accordion-body text-secondary px-0">
+                        While iceberg calving is a natural cyclical discharge mechanism for polar glaciers, the accelerated rate of calving and structural fractures (such as the disintegration of major shelves like Larsen B/C) are strong indicators of atmospheric and ocean warming. Tracking area decay and structural speed serves as invaluable data for global sea-level rise models.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

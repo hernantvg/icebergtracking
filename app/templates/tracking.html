@@ -1,46 +1,428 @@
-<!DOCTYPE html>
-<html lang="en">
+{% include 'header.html' %}
 
-<body>
-    {% include 'header.html' %}
-    <div class="container mt-4">
-        <header>
-            <h1>Iceberg Tracker</h1>
-            <p class="lead">Track icebergs in real-time, view their trajectory, and access up-to-date data.</p>
-        </header>
-
-        {% if message %}
-        <div class="alert alert-warning" role="alert">{{ message }}</div>
-        {% endif %}
-
-        <form method="POST" action="/select" class="my-4">
-            <div class="row mb-4">
-                <div class="col-md-8">
-                    <label for="iceberg" class="form-label">Select Iceberg</label>
-                    <select class="form-select" name="iceberg" id="iceberg" required>
-                        <option value="" disabled selected>Select an iceberg</option>
+<main class="container mt-2">
+    <!-- Top selector bar -->
+    <div class="row g-4 mb-4">
+        <div class="col-lg-4">
+            <div class="glass-panel">
+                <h5 class="text-white mb-3"><i class="fa-solid fa-map-pin me-2 text-cyan" style="color: var(--accent-cyan);"></i>Select Iceberg</h5>
+                
+                <!-- Autocomplete input form -->
+                <div class="input-group">
+                    <span class="input-group-text bg-dark border-light border-opacity-10 text-secondary"><i class="fa-solid fa-crosshairs"></i></span>
+                    <input type="text" class="form-control" placeholder="Type iceberg name (e.g. A23A)..." id="iceberg-selector" list="iceberg-options" autocomplete="off">
+                    <datalist id="iceberg-options">
                         {% for iceberg in icebergs %}
-                        <option value="{{ iceberg }}">{{ iceberg }}</option>
+                        <option value="{{ iceberg }}"></option>
                         {% endfor %}
-                    </select>
-                </div>
-                <div class="col-md-4 d-flex align-items-end">
-                    <button type="submit" class="btn btn-primary w-100">Show Trajectory</button>
+                    </datalist>
+                    <button class="btn btn-custom px-4" id="btn-load-trajectory"><i class="fa-solid fa-route"></i></button>
                 </div>
             </div>
-        </form>
-
-        {% if iceberg_map %}
-        <section id="map">
-            <h5 class="text-center">Iceberg Trajectory Map</h5>
-            <div class="map-container">
-                {{ iceberg_map|safe }}
+        </div>
+        
+        <!-- Iceberg Details panel (Dynamic populated) -->
+        <div class="col-lg-8">
+            <div class="glass-panel d-flex align-items-center justify-content-center text-center" id="details-panel" style="min-height: 114px;">
+                <div class="text-secondary" id="details-fallback">
+                    <i class="fa-solid fa-circle-info fa-2x mb-2 text-cyan" style="color: var(--accent-cyan);"></i>
+                    <p class="mb-0">Enter an iceberg identifier above to display tracking telemetry and spatial analysis charts.</p>
+                </div>
+                
+                <!-- Dynamic Content (Initially hidden) -->
+                <div class="w-100 text-start d-none" id="details-content">
+                    <div class="row align-items-center">
+                        <div class="col-md-3 border-end border-light border-opacity-10">
+                            <h3 class="display-6 fw-bold m-0 text-cyan" id="details-name">A23A</h3>
+                            <span class="badge badge-quadrant" id="details-quadrant">Quadrant A</span>
+                        </div>
+                        <div class="col-md-9 mt-3 mt-md-0">
+                            <div class="row g-3">
+                                <div class="col-6 col-sm-3">
+                                    <div class="small text-muted uppercase">Current Area</div>
+                                    <strong class="text-white" id="details-area">3,643 km²</strong>
+                                </div>
+                                <div class="col-6 col-sm-3">
+                                    <div class="small text-muted uppercase">Latest Position</div>
+                                    <strong class="text-white" id="details-coords">-57.37, -40.46</strong>
+                                </div>
+                                <div class="col-6 col-sm-3">
+                                    <div class="small text-muted uppercase">Telemetry Reports</div>
+                                    <strong class="text-white" id="details-reports">142 records</strong>
+                                </div>
+                                <div class="col-6 col-sm-3">
+                                    <div class="small text-muted uppercase">Last Observation</div>
+                                    <strong class="text-white" id="details-date">2024-12-20</strong>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
-        </section>
-        {% endif %}
+        </div>
     </div>
 
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
-</body>
+    <!-- Map & Chronology timeline row -->
+    <div class="row g-4 mb-4 d-none" id="tracking-workspace">
+        <!-- Interactive Trajectory map -->
+        <div class="col-lg-8">
+            <div class="glass-panel p-0 overflow-hidden glow-cyan">
+                <!-- Map Header controls -->
+                <div class="d-flex justify-content-between align-items-center p-3 border-bottom border-light border-opacity-10" style="background: rgba(0,0,0,0.2);">
+                    <h5 class="m-0 text-white"><i class="fa-solid fa-map-location-dot me-2 text-cyan" style="color: var(--accent-cyan);"></i>Vector Path Trajectory</h5>
+                    <div class="btn-group btn-group-sm" role="group">
+                        <button type="button" class="btn btn-outline-light active" id="map-tile-dark">Dark Matter</button>
+                        <button type="button" class="btn btn-outline-light" id="map-tile-satellite">Satellite</button>
+                    </div>
+                </div>
+                <div class="map-container">
+                    <div id="map"></div>
+                </div>
+            </div>
+        </div>
 
+        <!-- Chronological Timeline list -->
+        <div class="col-lg-4">
+            <div class="glass-panel d-flex flex-column h-100">
+                <h5 class="text-white mb-2"><i class="fa-solid fa-clock-rotate-left me-2 text-cyan" style="color: var(--accent-cyan);"></i>Chronology Log</h5>
+                <p class="text-secondary small mb-3">Chronological reports. Click coordinates to jump the map directly to that point.</p>
+                <div class="timeline-flow flex-grow-1" id="timeline-list">
+                    <!-- Dynamic populated -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Charts analysis row -->
+    <div class="row g-4 mb-4 d-none" id="charts-workspace">
+        <!-- Chart 1: Area Decay -->
+        <div class="col-md-6">
+            <div class="glass-panel">
+                <h5 class="text-white mb-3"><i class="fa-solid fa-chart-area me-2 text-cyan" style="color: var(--accent-cyan);"></i>Surface Area Decay (Mass Loss)</h5>
+                <div style="height: 280px; position: relative;">
+                    <canvas id="area-chart"></canvas>
+                </div>
+            </div>
+        </div>
+        <!-- Chart 2: Dimensions -->
+        <div class="col-md-6">
+            <div class="glass-panel">
+                <h5 class="text-white mb-3"><i class="fa-solid fa-ruler-combined me-2 text-cyan" style="color: var(--accent-cyan);"></i>Dimensions Tracking (Length vs Width)</h5>
+                <div style="height: 280px; position: relative;">
+                    <canvas id="dimensions-chart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</main>
+
+<script>
+    document.addEventListener("DOMContentLoaded", function () {
+        let map = null;
+        let polyline = null;
+        let markers = [];
+        let areaChart = null;
+        let dimensionsChart = null;
+        
+        // Dark & Satellite layers definition
+        const darkTile = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; OpenStreetMap &copy; CARTO'
+        });
+        const satelliteTile = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            attribution: 'Tiles &copy; Esri &mdash; Source: Esri'
+        });
+
+        // Initialize empty Leaflet map
+        function initMap() {
+            if (map) return;
+            map = L.map('map', {
+                center: [-65, -45],
+                zoom: 3,
+                maxZoom: 10,
+                minZoom: 2
+            });
+            darkTile.addTo(map);
+
+            // Layer Controls setup
+            document.getElementById("map-tile-dark").addEventListener("click", function() {
+                this.classList.add("active");
+                document.getElementById("map-tile-satellite").classList.remove("active");
+                map.removeLayer(satelliteTile);
+                darkTile.addTo(map);
+            });
+
+            document.getElementById("map-tile-satellite").addEventListener("click", function() {
+                this.classList.add("active");
+                document.getElementById("map-tile-dark").classList.remove("active");
+                map.removeLayer(darkTile);
+                satelliteTile.addTo(map);
+            });
+        }
+
+        // Main Trajectory Loading Engine
+        function loadTrajectory(icebergName) {
+            if (!icebergName) return;
+            
+            // Show workspace grids
+            document.getElementById("tracking-workspace").classList.remove("d-none");
+            document.getElementById("charts-workspace").classList.remove("d-none");
+            initMap();
+            
+            // Trigger Details Loading state
+            const detailsContent = document.getElementById("details-content");
+            const detailsFallback = document.getElementById("details-fallback");
+            
+            fetch(`/api/iceberg/${icebergName}`)
+                .then(res => {
+                    if (!res.ok) throw new Error("Iceberg not found");
+                    return res.json();
+                })
+                .then(resData => {
+                    const data = resData.data;
+                    if (data.length === 0) return;
+                    
+                    // 1. Populate details panel
+                    detailsFallback.classList.add("d-none");
+                    detailsContent.classList.remove("d-none");
+                    
+                    const latest = data[data.length - 1];
+                    const quadrant = latest.iceberg.charAt(0).toUpperCase();
+                    
+                    document.getElementById("details-name").textContent = latest.iceberg;
+                    document.getElementById("details-coords").textContent = `${latest.latitude.toFixed(2)}, ${latest.longitude.toFixed(2)}`;
+                    document.getElementById("details-reports").textContent = `${data.length} reports`;
+                    document.getElementById("details-date").textContent = latest.last_update;
+                    
+                    if (latest.area_sqkm) {
+                        document.getElementById("details-area").textContent = Math.round(latest.area_sqkm).toLocaleString() + ' km²';
+                    } else {
+                        document.getElementById("details-area").textContent = 'N/A';
+                    }
+                    
+                    // Format quadrant badge
+                    const quadEl = document.getElementById("details-quadrant");
+                    quadEl.textContent = `Quadrant ${quadrant}`;
+                    quadEl.className = 'badge badge-quadrant';
+                    let quadClass = 'quadrant-A';
+                    if (quadrant === 'B') quadClass = 'quadrant-B';
+                    else if (quadrant === 'C') quadClass = 'quadrant-C';
+                    else if (quadrant === 'D') quadClass = 'quadrant-D';
+                    quadEl.classList.add(quadClass);
+
+                    // 2. Clear existing map drawings
+                    if (polyline) map.removeLayer(polyline);
+                    markers.forEach(m => map.removeLayer(m));
+                    markers = [];
+
+                    // 3. Compile path coordinates and draw polylines
+                    const coords = data.map(item => [item.latitude, item.longitude]);
+                    
+                    polyline = L.polyline(coords, {
+                        color: 'var(--accent-cyan)',
+                        weight: 3,
+                        opacity: 0.8,
+                        dashArray: '5, 5'
+                    }).addTo(map);
+
+                    // Draw start and end path points
+                    data.forEach((item, index) => {
+                        const isLatest = index === data.length - 1;
+                        const isStart = index === 0;
+                        
+                        let markerColorClass = '';
+                        if (isLatest) markerColorClass = 'custom-leaflet-marker-active pulse-marker';
+                        else if (isStart) markerColorClass = 'bg-info border-info';
+                        
+                        // We display markers for start, end, and occasional intermediate steps to avoid maps cluttering
+                        if (isLatest || isStart || (data.length > 20 && index % 10 === 0) || (data.length <= 20)) {
+                            const size = isLatest ? 18 : 10;
+                            const customIcon = L.divIcon({
+                                className: `custom-leaflet-marker ${markerColorClass}`,
+                                iconSize: [size, size],
+                                iconAnchor: [size/2, size/2],
+                                html: `<div style="width: 100%; height:100%; border-radius:50%;"></div>`
+                            });
+
+                            const markerPopup = `
+                                <div class="p-1">
+                                    <h6 class="fw-bold mb-1 text-white">${item.iceberg}</h6>
+                                    <p class="small text-secondary mb-1"><strong>Observation Date:</strong> ${item.last_update}</p>
+                                    <p class="small text-secondary mb-1"><strong>Coordinates:</strong> ${item.latitude.toFixed(2)}, ${item.longitude.toFixed(2)}</p>
+                                    <p class="small text-secondary mb-0"><strong>Area:</strong> ${item.area_sqkm ? Math.round(item.area_sqkm) + ' km²' : 'N/A'}</p>
+                                </div>
+                            `;
+                            const marker = L.marker([item.latitude, item.longitude], { icon: customIcon })
+                                .addTo(map)
+                                .bindPopup(markerPopup);
+                                
+                            markers.push(marker);
+                        }
+                    });
+
+                    // Fit map viewport bounds around the path trajectory
+                    map.fitBounds(polyline.getBounds(), { padding: [30, 30] });
+
+                    // 4. Populate Timeline Log
+                    const timelineList = document.getElementById("timeline-list");
+                    timelineList.innerHTML = '';
+                    
+                    // We reverse chronology so the newest points display first
+                    const reversedData = [...data].reverse();
+                    reversedData.forEach(item => {
+                        const row = document.createElement("div");
+                        row.className = "timeline-row";
+                        row.style.cursor = 'pointer';
+                        
+                        const areaText = item.area_sqkm ? `${Math.round(item.area_sqkm)} km²` : 'N/A';
+                        row.innerHTML = `
+                            <div class="timeline-time">${item.last_update}</div>
+                            <div class="timeline-desc text-white">
+                                <strong>Coords:</strong> ${item.latitude.toFixed(2)}, ${item.longitude.toFixed(2)} <br>
+                                <span class="small text-secondary">Area: ${areaText} | Width: ${item.width_nm || 'N/A'} NM</span>
+                            </div>
+                        `;
+                        
+                        // Click row centers coordinates on the map
+                        row.addEventListener("click", function() {
+                            map.setView([item.latitude, item.longitude], 6);
+                            // Open dynamic popup at coordinate
+                            L.popup()
+                                .setLatLng([item.latitude, item.longitude])
+                                .setContent(`
+                                    <div class="p-1">
+                                        <h6 class="fw-bold mb-1 text-white">${item.iceberg}</h6>
+                                        <p class="small text-secondary mb-0"><strong>Date:</strong> ${item.last_update}<br><strong>Coords:</strong> ${item.latitude.toFixed(2)}, ${item.longitude.toFixed(2)}</p>
+                                    </div>
+                                `)
+                                .openOn(map);
+                        });
+                        
+                        timelineList.appendChild(row);
+                    });
+
+                    // 5. Draw Charts (Chart.js)
+                    
+                    // Extract values
+                    const dates = data.map(item => item.last_update);
+                    const areas = data.map(item => item.area_sqkm);
+                    const lengths = data.map(item => item.length_nm);
+                    const widths = data.map(item => item.width_nm);
+
+                    // Destroy old charts if existing
+                    if (areaChart) areaChart.destroy();
+                    if (dimensionsChart) dimensionsChart.destroy();
+
+                    // Area Decay Line Chart setup
+                    const ctxArea = document.getElementById('area-chart').getContext('2d');
+                    areaChart = new Chart(ctxArea, {
+                        type: 'line',
+                        data: {
+                            labels: dates,
+                            datasets: [{
+                                label: 'Surface Area (km²)',
+                                data: areas,
+                                borderColor: '#00f5d4',
+                                backgroundColor: 'rgba(0, 245, 212, 0.1)',
+                                borderWidth: 2,
+                                fill: true,
+                                tension: 0.3,
+                                pointRadius: data.length > 50 ? 0 : 3
+                            }]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { display: false }
+                            },
+                            scales: {
+                                x: {
+                                    grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                                    ticks: { color: '#64748b', maxTicksLimit: 8 }
+                                },
+                                y: {
+                                    grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                                    ticks: { color: '#64748b' }
+                                }
+                            }
+                        }
+                    });
+
+                    // Dimensions Bar Chart setup
+                    const ctxDim = document.getElementById('dimensions-chart').getContext('2d');
+                    dimensionsChart = new Chart(ctxDim, {
+                        type: 'bar',
+                        data: {
+                            labels: dates,
+                            datasets: [
+                                {
+                                    label: 'Length (NM)',
+                                    data: lengths,
+                                    backgroundColor: 'rgba(67, 97, 238, 0.75)',
+                                    borderColor: '#4361ee',
+                                    borderWidth: 1
+                                },
+                                {
+                                    label: 'Width (NM)',
+                                    data: widths,
+                                    backgroundColor: 'rgba(138, 43, 226, 0.75)',
+                                    borderColor: '#8a2be2',
+                                    borderWidth: 1
+                                }
+                            ]
+                        },
+                        options: {
+                            responsive: true,
+                            maintainAspectRatio: false,
+                            plugins: {
+                                legend: { labels: { color: '#94a3b8' } }
+                            },
+                            scales: {
+                                x: {
+                                    grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                                    ticks: { color: '#64748b', maxTicksLimit: 8 }
+                                },
+                                y: {
+                                    grid: { color: 'rgba(255, 255, 255, 0.05)' },
+                                    ticks: { color: '#64748b' }
+                                }
+                            }
+                        }
+                    });
+
+                })
+                .catch(err => {
+                    console.error("Error loading trajectory:", err);
+                    alert("Could not load tracking path. Iceberg code may be invalid or contains no coordinates.");
+                });
+        }
+
+        // Selector buttons listeners
+        const loadBtn = document.getElementById("btn-load-trajectory");
+        const selectorInput = document.getElementById("iceberg-selector");
+
+        loadBtn.addEventListener("click", function() {
+            const val = selectorInput.value.trim().toUpperCase();
+            loadTrajectory(val);
+        });
+
+        selectorInput.addEventListener("keypress", function(e) {
+            if (e.key === 'Enter') {
+                const val = selectorInput.value.trim().toUpperCase();
+                loadTrajectory(val);
+            }
+        });
+
+        // 6. Direct entry via URL parameters checking (e.g. ?select=A23A)
+        const urlParams = new URLSearchParams(window.location.search);
+        const preSelect = urlParams.get('select');
+        if (preSelect) {
+            selectorInput.value = preSelect;
+            loadTrajectory(preSelect);
+        }
+    });
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+</body>
 </html>

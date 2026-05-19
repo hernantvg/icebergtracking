@@ -1,152 +1,221 @@
-from flask import Flask, render_template, request, redirect, url_for
-import pandas as pd
+from flask import Flask, render_template, request, jsonify, redirect, url_for, session
 import os
-import folium
-from folium import PolyLine
+import time
+import threading
+import db_manager
+import scraper
 
 app = Flask(__name__)
 
-def fetch_latest_csv():
-    folder_path = "csv"
-    csv_files = [file for file in os.listdir(folder_path) if file.endswith(".csv")]
-    if not csv_files:
-        return None
-    latest_file = max(csv_files, key=lambda x: os.path.getctime(os.path.join(folder_path, x)))
-    return os.path.join(folder_path, latest_file)
+# Secure static secret key for persistent administrator sessions
+app.secret_key = "polar_sentinel_encryption_secret_key_2026_secure_key"
 
-def fetch_iceberg_data_from_folder():
-    folder_path = "csv/archive"
-    all_data = pd.DataFrame()
+# Random, high-security admin password
+ADMIN_PASSWORD = "IceSentinel_#9t8P_v2026!"
 
-    # Buscar archivos en el folder "csv/archive"
-    for file in os.listdir(folder_path):
-        if file.endswith(".csv"):
-            file_path = os.path.join(folder_path, file)
+# Flag to prevent multiple concurrent imports
+_sync_lock = threading.Lock()
+
+def start_daily_scheduler():
+    """Launches a daemon background thread that runs daily sync automation."""
+    # Prevent launching twice during Werkzeug reloader startup in debug mode
+    if os.environ.get("WERKZEUG_RUN_MAIN") != "true" and app.debug:
+        return
+        
+    def scheduler_loop():
+        print("Daily background synchronization scheduler started.")
+        # Sleep for 10 seconds initially on startup to let the app fully initialize
+        time.sleep(10)
+        while True:
+            print("Executing scheduled daily USNIC data synchronization...")
             try:
-                df = pd.read_csv(file_path, on_bad_lines='skip')
-                all_data = pd.concat([all_data, df], ignore_index=True)
+                status_msg, filepath, filename = scraper.scrape_usnic_latest_csv()
+                if filepath:
+                    files, rows = db_manager.import_all_csvs(force=False)
+                    print(f"Daily Sync Complete: {status_msg}. Ingested {rows} new records.")
+                else:
+                    print(f"Daily Sync Log: {status_msg}")
             except Exception as e:
-                print(f"Error reading {file_path}: {e}")
-
-    # Añadir el archivo más reciente de "csv"
-    latest_file = fetch_latest_csv()
-    if latest_file:
-        try:
-            latest_data = pd.read_csv(latest_file, on_bad_lines='skip')
-            all_data = pd.concat([all_data, latest_data], ignore_index=True)
-        except Exception as e:
-            print(f"Error reading {latest_file}: {e}")
+                print(f"Error during automated daily sync: {e}")
             
-    return all_data
+            # Sleep for 24 hours (86,400 seconds)
+            time.sleep(86400)
+            
+    thread = threading.Thread(target=scheduler_loop)
+    thread.daemon = True
+    thread.start()
 
-def fetch_latest_positions():
-    latest_file = fetch_latest_csv()
-    if not latest_file:
-        return pd.DataFrame()
+def initialize_application():
+    """Initializes the database, pre-loads historical data, and starts the automation scheduler."""
+    print("Initializing Iceberg Sentinel backend...")
+    db_manager.init_db()
+    
+    # Check if database is populated
+    stats = db_manager.get_db_stats()
+    if stats["total_records"] == 0:
+        print("Database is empty. Initiating background historical CSV data load...")
+        # Run in a background thread to allow the server to start instantly
+        thread = threading.Thread(target=db_manager.import_all_csvs)
+        thread.daemon = True
+        thread.start()
+    else:
+        print(f"Database ready. Loaded {stats['total_records']} reports across {stats['unique_icebergs']} unique icebergs.")
 
-    try:
-        data = pd.read_csv(latest_file, on_bad_lines='skip')
-        if 'Last Update' in data.columns:
-            # Intentar convertir 'Last Update' a formato datetime
-            data['Last Update'] = pd.to_datetime(data['Last Update'], errors='coerce')
-            # Eliminar filas con fechas inválidas
-            data = data.dropna(subset=['Last Update'])
-        else:
-            print(f"'Last Update' column not found in {latest_file}.")
-            return pd.DataFrame()
+    # Start the automated daily scheduler
+    start_daily_scheduler()
 
-        # Ordenar por Iceberg y Last Update (de más reciente a más antiguo)
-        latest_positions = data.sort_values(by=['Iceberg', 'Last Update'], ascending=[True, False])
-        # Eliminar duplicados para cada iceberg
-        latest_positions = latest_positions.drop_duplicates(subset=['Iceberg'])
-        return latest_positions
-    except Exception as e:
-        print(f"Error reading latest CSV {latest_file}: {e}")
-        return pd.DataFrame()
-
-def create_map(data):
-    iceberg_map = folium.Map(location=[-60, -40], zoom_start=3)
-
-    for iceberg, group in data.groupby('Iceberg'):
-        coordinates = group[['Latitude', 'Longitude']].dropna().values.tolist()
-        # Agrega una línea entre puntos consecutivos
-        if len(coordinates) > 1:
-            PolyLine(locations=coordinates, color="blue", weight=2.5, opacity=1).add_to(iceberg_map)
-        # Marcadores individuales para cada punto
-        for _, row in group.iterrows():
-            area = row.get('Area (sqKM)', "N/A")
-            folium.Marker(
-                location=[row['Latitude'], row['Longitude']],
-                popup=f"{row['Iceberg']} - {row['Last Update']}\nArea (sqKM): {area}"
-            ).add_to(iceberg_map)
-
-    return iceberg_map._repr_html_()
-
-def create_current_positions_map(latest_positions):
-    iceberg_map = folium.Map(location=[-60, -40], zoom_start=3)
-
-    for _, row in latest_positions.iterrows():
-        area = row.get('Area (sqKM)', "N/A")
-        folium.Marker(
-            location=[row['Latitude'], row['Longitude']],
-            popup=f"{row['Iceberg']} - Last Update: {row['Last Update']}\nArea (sqKM): {area}",
-            icon=folium.Icon(color='red', icon='info-sign')
-        ).add_to(iceberg_map)
-
-    return iceberg_map._repr_html_()
+# Trigger startup checks
+initialize_application()
 
 @app.route('/')
 def index():
-    data = fetch_iceberg_data_from_folder()
-    if data.empty:
-        message = "No data available. Please add CSV files to the 'csv' folder."
-        return render_template('index.html', message=message, iceberg_map=None, icebergs=[], iceberg_info=None, current_positions_map=None)
+    """Renders the central system Dashboard."""
+    # We pass active icebergs for the search autocomplete feature
+    icebergs = db_manager.get_active_icebergs()
+    return render_template('index.html', icebergs=icebergs)
 
-    icebergs = data['Iceberg'].dropna().unique().tolist()
-    latest_positions = fetch_latest_positions()
-    current_positions_map = create_current_positions_map(latest_positions) if not latest_positions.empty else None
-
-    return render_template('index.html', message=None, iceberg_map=None, icebergs=icebergs, iceberg_info=None, current_positions_map=current_positions_map)
-
-# Nueva ruta que redirige a /select
 @app.route('/tracking')
 def tracking():
-    return redirect(url_for('select_iceberg'))
+    """Renders the Trajectory Tracking interface."""
+    icebergs = db_manager.get_active_icebergs()
+    return render_template('tracking.html', icebergs=icebergs)
 
-@app.route('/select', methods=['GET', 'POST'])
-def select_iceberg():
-    data = fetch_iceberg_data_from_folder()
-    if data.empty:
-        message = "No data available. Please add CSV files to the 'csv' folder."
-        return render_template('tracking.html', message=message, iceberg_map=None, icebergs=[], iceberg_info=None, current_positions_map=None)
+@app.route('/sync')
+def sync_panel():
+    """Renders the System Administration and Synchronization dashboard if authenticated."""
+    if not session.get('admin_logged_in'):
+        return redirect(url_for('login', next=request.path))
+    return render_template('sync.html')
 
-    # Si el método es POST (cuando se envía el formulario)
+@app.route('/about')
+def about():
+    """Renders the educational and scientific about page."""
+    return render_template('about.html')
+
+@app.route('/login', methods=['GET', 'POST'])
+def login():
+    """Handles administrator authentication interface."""
+    error = None
+    next_page = request.args.get('next', '/')
+    
+    # If already logged in, redirect straight to next page
+    if session.get('admin_logged_in'):
+        return redirect(next_page)
+        
     if request.method == 'POST':
-        selected_iceberg = request.form.get('iceberg')
-        filtered_data = data[data['Iceberg'] == selected_iceberg]
+        password = request.form.get('password')
+        if password == ADMIN_PASSWORD:
+            session['admin_logged_in'] = True
+            return redirect(next_page)
+        else:
+            error = "Invalid administrator key. Access denied."
+            
+    return render_template('login.html', error=error)
 
-        if filtered_data.empty:
-            message = f"No data found for iceberg {selected_iceberg}."
-            return render_template('tracking.html', message=message, iceberg_map=None, icebergs=data['Iceberg'].unique().tolist(), iceberg_info=None, current_positions_map=None)
+@app.route('/logout')
+def logout():
+    """Logs out the administrator and clears session credentials."""
+    session.pop('admin_logged_in', None)
+    return redirect(url_for('index'))
 
-        iceberg_map = create_map(filtered_data)
+# ==========================================
+#              REST API ENDPOINTS
+# ==========================================
 
-        iceberg_info = {
-            'name': selected_iceberg,
-            'last_update': filtered_data['Last Update'].iloc[0],
-            'area': filtered_data.get('Area (sqKM)', pd.Series(["N/A"])).iloc[0],
-            'location': f"Latitude: {filtered_data['Latitude'].iloc[0]}, Longitude: {filtered_data['Longitude'].iloc[0]}"
-        }
+@app.route('/api/stats', methods=['GET'])
+def api_stats():
+    """Returns database and iceberg analytics statistics."""
+    try:
+        stats = db_manager.get_db_stats()
+        return jsonify({"status": "success", "data": stats})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 
-        latest_positions = fetch_latest_positions()
-        current_positions_map = create_current_positions_map(latest_positions) if not latest_positions.empty else None
+@app.route('/api/latest-positions', methods=['GET'])
+def api_latest_positions():
+    """Returns the most recent coordinates and metrics of all tracked icebergs."""
+    try:
+        positions = db_manager.get_latest_positions()
+        return jsonify({"status": "success", "count": len(positions), "data": positions})
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 
-        return render_template('tracking.html', message=None, iceberg_map=iceberg_map, icebergs=data['Iceberg'].unique().tolist(), iceberg_info=iceberg_info, current_positions_map=current_positions_map)
+@app.route('/api/iceberg/<name>', methods=['GET'])
+def api_iceberg_detail(name):
+    """Returns complete chronological coordinates, area history, and status of a single iceberg."""
+    try:
+        trajectory = db_manager.get_trajectory(name)
+        if not trajectory:
+            return jsonify({"status": "error", "message": f"Iceberg '{name}' not found."}), 404
+            
+        return jsonify({
+            "status": "success",
+            "iceberg": name.upper(),
+            "count": len(trajectory),
+            "data": trajectory
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
 
-    # Si el método es GET (cuando se carga la página inicialmente)
-    else:
-        return render_template('tracking.html', message=None, iceberg_map=None, icebergs=data['Iceberg'].unique().tolist(), iceberg_info=None, current_positions_map=None)
+@app.route('/api/sync-data', methods=['POST'])
+def api_sync_data():
+    """Triggers data scraper to fetch USNIC updates and ingestion logic (Admin-only)."""
+    if not session.get('admin_logged_in'):
+        return jsonify({"status": "error", "message": "Unauthorized. Administrator key required."}), 401
+        
+    if not _sync_lock.acquire(blocking=False):
+        return jsonify({
+            "status": "error",
+            "message": "Synchronization is already in progress. Please wait for the current job to complete."
+        }), 409
+        
+    try:
+        # Run scraping logic
+        status_msg, filepath, filename = scraper.scrape_usnic_latest_csv()
+        
+        db_updates = 0
+        files_processed = 0
+        
+        # If scraper found new files or fallback succeeded, run ingestion
+        if filepath:
+            # We import all newly added CSVs in our folder
+            files_processed, db_updates = db_manager.import_all_csvs(force=False)
+            
+        return jsonify({
+            "status": "success",
+            "message": status_msg,
+            "files_processed": files_processed,
+            "records_inserted": db_updates
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+    finally:
+        _sync_lock.release()
 
+@app.route('/api/rebuild-db', methods=['POST'])
+def api_rebuild_db():
+    """Deletes and rebuilds database from all local CSV files (Admin-only)."""
+    if not session.get('admin_logged_in'):
+        return jsonify({"status": "error", "message": "Unauthorized. Administrator key required."}), 401
+        
+    if not _sync_lock.acquire(blocking=False):
+        return jsonify({
+            "status": "error",
+            "message": "Rebuilding/Synchronization in progress. Action locked."
+        }), 409
+        
+    try:
+        files_processed, db_updates = db_manager.import_all_csvs(force=True)
+        return jsonify({
+            "status": "success",
+            "message": "Database successfully wiped and rebuilt from local CSV archives.",
+            "files_processed": files_processed,
+            "records_inserted": db_updates
+        })
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 500
+    finally:
+        _sync_lock.release()
 
 if __name__ == '__main__':
     app.run(debug=True)

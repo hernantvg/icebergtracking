@@ -2,3 +2,5 @@ Flask
 pandas
 requests
 folium
+beautifulsoup4
+lxml
